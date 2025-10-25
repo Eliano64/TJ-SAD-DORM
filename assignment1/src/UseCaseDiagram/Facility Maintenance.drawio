@@ -1,0 +1,95 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0" version="28.2.8">
+  <diagram name="第 1 页" id="Gx86zcwWi8R1tgiLkqKr">
+    <mxGraphModel dx="1176" dy="638" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="he4h5-7aJeY1rknDQwsv-1" value="Student" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;" parent="1" vertex="1">
+          <mxGeometry x="90" y="210" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-4" value="Dorm&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;Administrator&lt;/span&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;" parent="1" vertex="1">
+          <mxGeometry x="90" y="380" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-5" value="Maintenance Staff" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;" parent="1" vertex="1">
+          <mxGeometry x="90" y="550" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-6" value="Submit Maintenance Request" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="210" y="152.5" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-7" value="" style="endArrow=open;endFill=1;endSize=12;html=1;rounded=0;" parent="1" source="he4h5-7aJeY1rknDQwsv-1" target="he4h5-7aJeY1rknDQwsv-6" edge="1">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="140" y="270" as="sourcePoint" />
+            <mxPoint x="300" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-10" value="Intelligent Order Dispatch" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="490" y="152.5" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-14" value="Receive Work Order" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="220" y="515" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-16" value="" style="endArrow=open;endFill=1;endSize=12;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="he4h5-7aJeY1rknDQwsv-5" target="he4h5-7aJeY1rknDQwsv-14" edge="1">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="130" y="420" as="sourcePoint" />
+            <mxPoint x="290" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-17" value="Update Maintenance Status" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="450" y="600" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-19" value="" style="endArrow=open;endFill=1;endSize=12;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="he4h5-7aJeY1rknDQwsv-5" target="he4h5-7aJeY1rknDQwsv-17" edge="1">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="100" y="680" as="sourcePoint" />
+            <mxPoint x="260" y="680" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-20" value="Track Maintenance Progress" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="210" y="257.5" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-22" value="" style="endArrow=open;endFill=1;endSize=12;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="he4h5-7aJeY1rknDQwsv-1" target="he4h5-7aJeY1rknDQwsv-20" edge="1">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="180" y="270" as="sourcePoint" />
+            <mxPoint x="280" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-24" value="Rate Maintenance Service" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="550" y="257.5" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-31" value="" style="endArrow=open;endFill=1;endSize=12;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="he4h5-7aJeY1rknDQwsv-4" target="he4h5-7aJeY1rknDQwsv-32" edge="1">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="150" y="420" as="sourcePoint" />
+            <mxPoint x="220" y="410" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="he4h5-7aJeY1rknDQwsv-32" value="Monitor Maintenance Loop" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="210" y="375" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d4iqZMtwrXJNufHNxoRh-1" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="endArrow=open;endSize=12;dashed=1;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="he4h5-7aJeY1rknDQwsv-24">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="360" y="330" as="sourcePoint" />
+            <mxPoint x="351" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d4iqZMtwrXJNufHNxoRh-2" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;" style="endArrow=open;endSize=12;dashed=1;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="he4h5-7aJeY1rknDQwsv-6" target="he4h5-7aJeY1rknDQwsv-10">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="370" y="220" as="sourcePoint" />
+            <mxPoint x="530" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d4iqZMtwrXJNufHNxoRh-3" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;" style="endArrow=open;endSize=12;dashed=1;html=1;rounded=0;" edge="1" parent="1" source="he4h5-7aJeY1rknDQwsv-10">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="400" y="580" as="sourcePoint" />
+            <mxPoint x="360" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d4iqZMtwrXJNufHNxoRh-4" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="endArrow=open;endSize=12;dashed=1;html=1;rounded=0;exitX=0.571;exitY=0;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="he4h5-7aJeY1rknDQwsv-17" target="he4h5-7aJeY1rknDQwsv-20">
+          <mxGeometry x="-0.3751" y="-2" width="160" relative="1" as="geometry">
+            <mxPoint x="470" y="600" as="sourcePoint" />
+            <mxPoint x="520" y="620" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
