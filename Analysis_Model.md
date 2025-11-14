@@ -201,57 +201,253 @@ Web 门户 (SPA): 一个单页应用程序 (SPA)，面向系统的主要用户�
 
 ### 3.1 Domain Model（领域模型：类图）
 
-要求
-- 关键类需标注主要职责与重要属性；类间关系明确（关联、组合、继承、枚举）。
-- 与 SRS 用语一致（参考第 5 章 Glossary）。
+## 3.1.1用户管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
 
-建议类（可增删）
-- Student, DormBuilding, DormRoom, Bed, Allocation, Preference
-- RepairOrder, MaintenanceStaff, HousingAdmin, AccessLog, Visitor
-- Bill, Payment, Announcement, Notification
-- Role, Permission, Account, AuthSession
-
-占位骨架（后续替换）
 ```mermaid
 classDiagram
-    class Student {
-      +id: string
-      +name: string
-      +gender: enum
-      +major: string
-      +preferences: Preference[]
+    %% Boundary Classes
+    class LoginForm {
+        +String username
+        +String password
+        +submitLogin() void
+        +showError() void
+        +showSuccess() void
     }
-    class DormBuilding { +id +name +address }
-    class DormRoom { +id +number +floor +capacity +buildingId }
-    class Bed { +id +roomId +status: enum }
-    class Allocation { +id +studentId +bedId +status: enum +createdAt }
-    class Preference { +studentId +quietHours +roommateTags[] }
-    class RepairOrder { +id +studentId +roomId +category +status +createdAt }
-    class MaintenanceStaff { +id +name +skills[] }
-    class HousingAdmin { +id +name }
-    class AccessLog { +id +userId +event +timestamp }
-    class Visitor { +id +name +visitCode +expiresAt }
-    class Bill { +id +roomId +period +amount +status }
-    class Payment { +id +billId +channel +paidAt +status }
-    class Announcement { +id +title +content +publishedAt }
-    class Notification { +id +userId +type +content +sentAt }
-    class Role { +id +name }
-    class Permission { +id +resource +action }
 
-    Student "1" -- "many" Preference
-    DormBuilding "1" -- "many" DormRoom
-    DormRoom "1" -- "many" Bed
-    Student "1" -- "many" RepairOrder
-    RepairOrder "many" -- "1" MaintenanceStaff
-    Allocation "1" -- "1" Student
-    Allocation "1" -- "1" Bed
-    Bill "1" -- "many" Payment
-    Role "many" -- "many" Permission
+    class RegistrationForm {
+        +String username
+        +String password
+        +String email
+        +String phone
+        +submitRegistration() void
+        +validateInput() boolean
+        +showResult() void
+    }
+
+    class PasswordChangeForm {
+        +String oldPassword
+        +String newPassword
+        +String verificationCode
+        +submitChange() void
+        +requestVerificationCode() void
+    }
+
+    %% Control Classes
+    class LoginController {
+        +authenticateUser() boolean
+        +validateCredentials() boolean
+        +createSession() void
+        +logout() void
+    }
+
+    class RegistrationController {
+        +registerUser() boolean
+        +validateUserData() boolean
+        +checkDuplicate() boolean
+    }
+
+    class PasswordController {
+        +changePassword() boolean
+        +verifyCode() boolean
+        +sendVerificationCode() void
+    }
+
+    %% Entity Classes
+    class Account {
+        +String accountId
+        +String username
+        +String password
+        +String email
+        +String phone
+        +AccountStatus status
+        +Date createdAt
+        +Role role
+        +authenticate() boolean
+        +updatePassword() void
+        +deactivate() void
+    }
+
+    class Role {
+        +String roleId
+        +String roleName
+        +List~Permission~ permissions
+        +addPermission() void
+        +removePermission() void
+    }
+
+    class Permission {
+        +String permissionId
+        +String resource
+        +String action
+        +String description
+    }
+
+    %% Enumeration
+    class AccountStatus {
+        <<enumeration>>
+        ACTIVE
+        INACTIVE
+        SUSPENDED
+        PENDING
+    }
+
+    %% Relationships
+    LoginForm --> LoginController : uses
+    RegistrationForm --> RegistrationController : uses
+    PasswordChangeForm --> PasswordController : uses
+    LoginController --> Account : manages
+    RegistrationController --> Account : creates
+    PasswordController --> Account : updates
+    Account "1" -- "1" Role : has
 ```
 
-注意
-- 属性尽量业务化（避免技术细节）；枚举集中管理（如 `AllocationStatus`）。
-- 用例到类的映射关系在子章节中解释。
+## 3.1.2宿舍信息子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class DormInfoUI {
+        +displayDormDetails() void
+        +showRoommates() void
+        +showAvailableRooms() void
+        +filterDorms() void
+    }
+
+    class RoomChangeForm {
+        +String studentId
+        +String currentRoom
+        +String requestedRoom
+        +String reason
+        +Date requestDate
+        +submitRequest() void
+        +cancelRequest() void
+    }
+
+    %% Control Classes
+    class RoomChangeController {
+        +processRoomChange() boolean
+        +validateRequest() boolean
+        +checkAvailability() boolean
+    }
+
+    class AllocationController {
+        +allocateRooms() void
+        +generateAllocationPlan() void
+        +adjustAllocation() void
+        +confirmAllocation() void
+    }
+
+    %% Entity Classes
+    class Dormitory {
+        +String dormId
+        +String buildingName
+        +String address
+        +Integer totalFloors
+        +Integer totalRooms
+        +DormType type
+        +List~Room~ rooms
+        +getRoomDetails() Room
+        +getAvailableRooms() List~Room~
+        +updateRoomStatus() void
+    }
+
+    class Room {
+        +String roomId
+        +String roomNumber
+        +Integer floor
+        +Integer capacity
+        +Integer currentOccupancy
+        +RoomStatus status
+        +List~Facility~ facilities
+        +checkAvailability() boolean
+        +addStudent() void
+        +removeStudent() void
+    }
+
+    class Student {
+        +String studentId
+        +String name
+        +String major
+        +Integer grade
+        +String currentRoom
+        +Date checkInDate
+        +getRoommates() List~Student~
+        +requestRoomChange() void
+        +updateRoom() void
+    }
+
+    class AllocationSystem {
+        +String allocationId
+        +Date allocationDate
+        +AllocationStatus status
+        +Map~String, String~ assignments
+        +executeAllocation() void
+        +adjustAssignment() void
+        +finalizeAllocation() void
+    }
+
+    class DormSupervisor {
+        +String supervisorId
+        +String name
+        +String contact
+        +List~String~ managedBuildings
+        +reviewRoomChange() boolean
+        +approveAllocation() void
+        +generateReport() void
+    }
+
+    %% Enumerations
+    class DormType {
+        <<enumeration>>
+        MALE_DORM
+        FEMALE_DORM
+        INTERNATIONAL
+        GRADUATE
+    }
+
+    class RoomStatus {
+        <<enumeration>>
+        AVAILABLE
+        OCCUPIED
+        UNDER_MAINTENANCE
+        RESERVED
+    }
+
+    class AllocationStatus {
+        <<enumeration>>
+        PENDING
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+
+    %% Relationships
+    DormInfoUI --> Room : displays
+    RoomChangeForm --> RoomChangeController : submits to
+    RoomChangeController --> Student : updates
+    RoomChangeController --> DormSupervisor : requires approval from
+    AllocationController --> AllocationSystem : manages
+    AllocationController --> DormSupervisor : coordinates with
+    Dormitory "1" -- "*" Room : contains
+    Room "*" -- "*" Student : accommodates
+    AllocationSystem "*" -- "*" Student : allocates
+```
+
+## 3.1.3设备和维修管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+## 3.1.4缴费管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+## 3.1.5公共资源管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+
+
+
 
 ### 3.2 Interaction Analysis（交互：时序/协作图）
 
