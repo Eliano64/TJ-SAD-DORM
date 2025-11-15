@@ -1040,18 +1040,90 @@ sequenceDiagram
 
 ---
 
-## 5 Updated UI Snapshots（界面快照 ≥ 5 张）
 
-要求
-- 至少五张更新后的 UI 快照，每张配说明（功能目标、交互路径、状态说明）。
-- 若含报表/可视化/通知样式，需贴样例。
-- 资源路径：`assignment2/Assignment_2/src/UI/`，命名建议 `UI_<模块>_<版本>.png`。
+# 5 UI Mock-ups（界面快照）
 
-引用示例
-```markdown
-![学生端-选房 v1.0](src/UI/Student_SelectRoom_v1.0.png)
-说明：展示可选楼栋/房间/床位的状态与交互流程，支持偏好筛选。
-```
+本节展示本系统当前已完成的五个核心界面原型，包括登录页面、宿舍管理员主界面、学生端报修申请页、宿舍分配与更换界面，以及学生个人宿舍主页。所有原型图均存放于仓库目录：
+`assignment2/UI/*.png`
+
+---
+
+## 5.1 登录页面（Login Page）
+
+![Login Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Login%20Page_v1.0.png)
+
+**功能简介：**
+登录页面是系统访问的入口，用户可通过输入学号和密码进入学生端或后台管理端。
+
+**关键交互：**
+
+* 输入学号与密码后点击“登录”按钮进行身份验证
+* 可点击“找回密码”跳转至重置流程
+* “使用指南”为新用户提供操作说明
+
+---
+
+## 5.2 宿舍管理员主界面（Manager Main Page）
+
+![Manager Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Manager%20Page_v1.0.png)
+
+**功能简介：**
+提供宿舍管理员所需的核心管理功能，包括报修统计、报修任务处理、公告管理等。
+
+**关键交互：**
+
+* 顶部导航栏可切换 “情况统计 / 报修管理 / 宿舍分配 / 公告”
+* 报修任务列表支持查看任务状态（已完成 / 进行中等）
+* 公告模块可创建或编辑公告
+
+---
+
+## 5.3 学生宿舍报修申请页面（Repairment Page）
+
+![Repairment Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Repairment%20Page_v1.0.png)
+
+**功能简介：**
+用于学生提交宿舍维修工单，包括选择报修类型、描述问题、上传照片和填写联系方式。
+
+**关键交互：**
+
+* 下拉选择报修类别（如：电路、水管、门锁等）
+* 文本框填写问题详情
+* 上传图片辅助管理员判断
+* 点击“提交申请”进入工单处理流程
+
+---
+
+## 5.4 宿舍分配与更换界面（Dorm Allocation & Change）
+
+![Dorm Change Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Change_v1.0.png)
+
+**功能简介：**
+学生可根据个人偏好筛选宿舍（楼栋、楼层、床位、作息、卫生、宿舍环境等）并查看推荐结果。
+
+**关键交互：**
+
+* 左侧为偏好设置栏（可选择年级、楼栋、楼层、环境偏好等）
+* 右侧展示系统筛选结果
+* 每条宿舍候选项提供“申请”按钮
+* 支持保存偏好
+
+---
+
+## 5.5 学生个人宿舍主页（Student Home Page）
+
+![Dorm Info Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Page_v1.0.png)
+
+**功能简介：**
+集中展示学生的宿舍基本信息、公告通知，以及报修记录，并提供快捷入口至各类功能。
+
+**关键交互：**
+
+* 顶部栏可切换：宿舍信息 / 报修中心 / 公告
+* 展示当前宿舍号、入住状态、最新公告
+* 列表展示近期报修记录
+* 底部按钮可进入：报修申请、费用缴纳、宿舍分配、个人信息填写等页面
+
 
 ---
 
