@@ -1,0 +1,1304 @@
+# 智舍宿舍管理系统 — 系统分析（Part II: Analysis Model）
+
+## 1 Introduction（引言，约 500 字）
+
+本项目“智舍宿舍管理系统”聚焦智慧校园场景下的宿舍管理与服务协同，针对现有系统割裂、流程低效、数据利用不足等痛点，通过统一入口、规则与算法结合的调度机制，以及数据看板与异常预警，构建“安、畅、暖”的宿舍生活底座。系统采用前后端分离与分层架构设计，确保核心业务的稳定性与扩展性。
+
+项目目标与范围明确如下：一是“智能分配”，基于学生画像与宿舍供给进行自动匹配，同时支持宿管的人工校正与留痕；二是“高效维护”，实现报修—派单—维修—反馈闭环与进度跟踪；三是“透明费用”，提供自动计费、在线支付与账单留存；四是“综合安防”，覆盖门禁认证与访客管理；五是“数据决策”，通过可视化看板形成治理支持。平台覆盖 Web 端与桌面端（Electron），面向学生、宿管、维修、安保与访客等多角色。当前不纳入的范围包括硬件采购、非校园账务清算与跨校区域调度等。
+
+自上一阶段（需求建模）以来的进展：SRS 已定版并补充了路线图（MVP1/MVP2/正式版）与非功能指标框架；初步架构图与 ADR 完成，明确单库 + 缓存策略与外部系统适配边界；领域模型输出用户管理、宿舍信息、维修与缴费四个子系统的类图与枚举；交互分析开题覆盖 UC03、UC04、UC06；UI 已提供 ≥5 个关键页面快照与通知样例；与学籍/支付/门禁的接口约束形成一致术语与数据字段规范。
+
+与前一阶段的变更与当前状态：对“智能分配”的验证与留痕要求进行了明确（算法输出—人工微调—审批确认—日志固化）；性能目标按场景细化为 P95/P99；接口统一以适配器模式对齐外部系统协议，减少耦合；安全要求强调 RBAC 与审计日志；数据策略采用单库 + 连接池 + 热点缓存。当前状态为：架构与术语稳定、领域模型初版可用、交互图持续完善，进入用例实现与接口模拟联调阶段，关键开放问题已在第 6 章列出并排期。
+
+## 2 Architectural Analysis（架构分析）
+
+### 2.1 总体架构设计
+
+1. 展现层 (Presentation Layer)
+该层负责处理所有面向用户的交互，是系统的用户界面（UI）部分。它向用户展示信息，捕获用户的输入事件（如点击、表单提交），并将这些操作请求转发给应用服务层进行处理。
+
+2. 应用服务层 (Application Service Layer)
+该层作为展现层与领域核心层之间的协调者。它负责编排具体的业务用例流程，管理事务边界和执行权限验证。它通过调用领域服务和持久化接口，来协调完成一个完整的、有状态的业务操作。
+
+3. 领域核心层 (Domain Core Layer)
+该层是系统的业务核心，封装了所有纯粹的业务规则、逻辑、实体和状态模型。它独立于任何技术实现细节（如数据库或UI），确保了核心业务逻辑的稳定、可测试和可复用。
+
+4. 数据持久化层 (Data Persistence Layer)
+该层提供了将领域对象（如实体）映射到内部数据存储的具体实现。它实现了上层定义的仓储（Repository）接口，负责执行所有与内部数据库和缓存相关的数据查询与增删改操作。
+
+5. 外部集成层 (External Integration Layer)
+该层负责处理与所有第三方外部系统的通信。它通过适配器（Adapters）模式封装了与外部API（如校园信息系统、支付渠道、物联网设备）的交互细节，包括协议转换和数据格式映射，为系统内部提供统一的接口。
+
+![](assignment2/src/架构图/架构图.png)
+
+### 2.2 架构图详解
+
+系统架构图详细介绍
+本系统采用经典的多层架构，自上而下分为展现层、应用服务层、领域核心层、数据持久化层和外部集成层。这种设计确保了各层职责单一、高度解耦，易于维护和扩展。
+
+#### 2.2.1 展现层 (Presentation Layer)
+
+![](assignment2/src/架构图/展现层.png)
+
+展现层是系统的最顶层，负责所有面向用户的交互和界面展示 (UI)。它捕获用户的输入，并将请求转发给应用服务层进行处理。根据图示，该层针对不同用户群体提供了专属的门户：
+
+Web 门户 (SPA): 一个单页应用程序 (SPA)，面向系统的主要用户（如学生），提供宿舍信息查看、报修、缴费等日常功能。
+
+管理后台 (SPA): 另一个单页应用程序，专用于系统管理人员（如宿管、安保、维修团队）进行后台操作，如分配管理、工单审批、安防监控等。
+
+访客门户: 一个为访客（如学生亲友）提供的独立入口，主要用于访客预约登记和身份确认。
+
+#### 2.2.2 应用服务层 (Application Service Layer)
+
+![](assignment2/src/架构图/应用服务层.png)
+应用服务层是展现层与领域核心层之间的协调者。它不包含核心业务规则，而是负责编排具体的业务用例（Use Case）流程、管理事务边界，并调用一个或多个领域服务来完成一个完整的操作。
+
+该层按业务场景被划分为五个核心服务：
+
+用户管理服务: 负责处理用户登录、注册、权限验证和信息查询等相关流程。
+
+- 缴费服务: 负责协调与费用（如水电费）相关的业务流程，如发起计费、处理支付回调、发送预警等。
+
+- 维修服务: 负责协调所有设备报修、智能派单和维修状态更新的完整流程。
+
+- 智能分配服务: 负责协调宿舍的自动分配和学生的调宿申请流程。
+
+- 访客与安防服务: 负责协调访客预约、门禁访问审批和安全告警等流程。
+
+#### 2.2.3 领域核心层 (Domain Core Layer)
+
+![](assignment2/src/架构图/领域核心层.png)
+领域核心层是系统的“心脏”，封装了所有纯粹的业务规则、实体、状态和算法。该层独立于技术实现（如数据库或UI），确保了核心业务逻辑的稳定、可测试和可复用。
+
+该层按业务边界被划分为五大领域，每个领域包含其内部的细化职责：
+
+**用户领域**:
+
+- 用户与角色: 定义用户实体和角色实体的业务规则。
+
+- 权限规则: 封装了基于角色（RBAC）的权限判断逻辑。
+
+- 用户信息: 定义用户的个人画像或背景信息模型。
+
+**缴费领域**:
+
+- 支付与预警: 处理支付状态流转和欠费预警的业务规则。
+
+- 自动计费规则: 封装了如何根据用量和单价计算费用的核心算法。
+
+**维修领域**:
+
+- 智能派单服务: 包含了根据维修工技能、位置、负载来自动分配工单的规则。
+
+- 工单状态管理: 负责管理维修工单（如待接单、维修中、已完成、已评价）的生命周期。
+
+**智能分配领域**:
+
+- 调宿请求处理: 封装了学生调宿申请的资格校验、审批流程等业务规则。
+
+- 智能匹配算法: 是宿舍分配功能的核心，定义了如何根据学生画像（如专业、作息）匹配宿舍的算法。
+
+**安防领域**:
+
+- 门禁认证与告警: 定义了谁可以进入、何时进入的认证规则，以及处理异常闯入的告警逻辑。
+
+- 访客授权逻辑: 负责处理访客的预约审批和临时通行凭证的生成规则。
+
+#### 2.2.4 数据持久化层 (Data Persistence Layer)
+
+![](assignment2/src/架构图/数据持久化层.png)
+数据持久化层提供了将领域对象（如实体）映射到内部数据存储的具体实现。该层按数据访问的技术功能进行划分，为上层提供了统一、抽象的数据访问接口：
+
+- 数据访问与映射: 负责执行所有的数据查询 (SQL) 和对象关系映射 (ORM)，是仓储模式 (Repository Pattern) 的具体实现。它封装了对数据库的直接操作，实现了领域层定义的接口。
+
+- 数据缓存: 提供高性能的缓存服务（如 Redis），用于存储热点数据。数据访问与映射 组件会调用它以减少数据库压力。
+
+- 数据库连接池: 负责管理与数据库的物理连接，确保数据访问的高效和稳定。
+
+- PostgreSQL数据库: 系统的最终物理数据存储后端。
+
+#### 2.2.5 外部集成层 (External Integration Layer)
+
+![](assignment2/src/架构图/外部集成层.png)
+外部集成层是系统与所有第三方外部系统通信的统一出口。它通过“适配器”模式封装了与外部 API 的交互细节（如协议转换、数据格式化），为内部的领域层和应用服务层提供稳定、统一的接口：
+
+- 学籍系统接口: 负责对接学校的学籍系统，以获取学生画像、专业等数据。
+
+- 水电表系统接口: 负责对接物联网 (IoT) 水电表，以读取宿舍的实时用量数据。
+
+- 支付系统接口: 负责对接微信、支付宝等第三方支付渠道，以处理在线缴费。
+
+- 门禁系统接口: 负责与宿舍楼的智能门禁硬件通信，以执行开门或告警指令。
+
+### 2.3 架构决策说明
+
+#### 决策1：采用前后端分离与微服务后端架构
+- **关键决策**
+
+前后端分离：采用单页应用（SPA）展现层与后端应用服务层彻底分离的模式。
+
+微服务架构：后端按业务边界划分为多个独立服务，如用户管理、缴费、维修、智能分配、访客安防等。
+
+- **权衡与取舍**
+
+
+可靠性与容错性：这是关键驱动因素。SRS 明确要求“单个非核心微服务故障不影响核心业务的正常运行” 。微服务架构是实现此目标的基础，避免了单体架构“一处失败，全局崩溃”的风险。
+
+
+
+可维护性与扩展性：微服务划分与领域核心层 的限界上下文一致，使团队能独立开发和部署功能。同时，架构支持“水平扩展” ，能满足 SRS 提出的“500个并发用户”  等性能指标。
+
+
+
+多端支持：分离的 API 便于复用，为 SRS 中提到的 Web 端 和 Electron 桌面端  提供统一支持。
+
+#### 决策2：数据持久化策略（单库模式）
+- **关键决策**
+
+
+数据库选型：使用 PostgreSQL 作为关系型数据库 。
+
+架构模式：采用“单库”模式。如图所示，所有微服务通过“数据持久化层”访问同一个 PostgreSQL 实例。
+
+- **权衡与取舍**
+
+
+简化开发复杂度：采用“单库”模式可以避免“库分离”模式带来的分布式事务和数据同步的巨大复杂度，极大简化了开发和数据管理。
+
+
+保障数据一致性：缴费、分配、维修等核心业务 对事务一致性要求极高。PostgreSQL 提供了强大的 ACID 事务支持，且为团队熟悉的技术栈 。
+
+
+性能缓解：为缓解“单库”的性能瓶颈，架构中的“数据持久化层”设计了“数据缓存”和“数据库连接池” 组件，以满足响应时间要求。
+
+
+<!-- 产出与格式
+- 至少 1 张系统级架构图（UML/SysML/C4 均可），并配文字说明。
+- 建议：在 `assignment2/Assignment_2/src/Architecture/` 存放架构图（PNG/SVG），文档内引用。
+- 图后紧跟“架构决策说明”（ADR 风格）：关键决策、备选方案、权衡取舍。
+
+写作提示
+- 高层视角：前后端分离、微服务、数据库、外部系统（学籍系统、支付网关、门禁/水电表）。
+- 映射到技术栈：React + TS + Electron；Go + Gin + Gorm；PostgreSQL；API 边界；消息/实时通道（WebSocket/MQTT）。
+- 非功能指标关联：与 `SRS.md` 第 6 章的性能、安全、可维护等目标形成呼应。
+
+示例（占位，后续替换为正式图）
+- 若用 C4（PlantUML）：在 `src/Architecture/` 输出 PNG 并引用。
+- 若用 UML 组件图（Mermaid），示例骨架：
+-->
+
+## 3 Analysis Model（领域模型与交互分析）
+
+目标
+- 基于已确定的初始架构，输出领域模型（类图）与关键用例交互（时序/协作图）。
+- 按用例实现（use case realization）组织，优先覆盖 UC03、UC04、UC06、UC07、UC12 等核心场景。
+
+### 3.1 Domain Model（领域模型：类图）
+
+#### 3.1.1用户管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class LoginForm {
+        +String username
+        +String password
+        +submitLogin() void
+        +showError() void
+        +showSuccess() void
+    }
+
+    class RegistrationForm {
+        +String username
+        +String password
+        +String email
+        +String phone
+        +submitRegistration() void
+        +validateInput() boolean
+        +showResult() void
+    }
+
+    class PasswordChangeForm {
+        +String oldPassword
+        +String newPassword
+        +String verificationCode
+        +submitChange() void
+        +requestVerificationCode() void
+    }
+
+    %% Control Classes
+    class LoginController {
+        +authenticateUser() boolean
+        +validateCredentials() boolean
+        +createSession() void
+        +logout() void
+    }
+
+    class RegistrationController {
+        +registerUser() boolean
+        +validateUserData() boolean
+        +checkDuplicate() boolean
+    }
+
+    class PasswordController {
+        +changePassword() boolean
+        +verifyCode() boolean
+        +sendVerificationCode() void
+    }
+
+    %% Entity Classes
+    class Account {
+        +String accountId
+        +String username
+        +String password
+        +String email
+        +String phone
+        +AccountStatus status
+        +Date createdAt
+        +Role role
+        +authenticate() boolean
+        +updatePassword() void
+        +deactivate() void
+    }
+
+    class Role {
+        +String roleId
+        +String roleName
+        +List~Permission~ permissions
+        +addPermission() void
+        +removePermission() void
+    }
+
+    class Permission {
+        +String permissionId
+        +String resource
+        +String action
+        +String description
+    }
+
+    %% Enumeration
+    class AccountStatus {
+        <<enumeration>>
+        ACTIVE
+        INACTIVE
+        SUSPENDED
+        PENDING
+    }
+
+    %% Relationships
+    LoginForm --> LoginController : uses
+    RegistrationForm --> RegistrationController : uses
+    PasswordChangeForm --> PasswordController : uses
+    LoginController --> Account : manages
+    RegistrationController --> Account : creates
+    PasswordController --> Account : updates
+    Account "1" -- "1" Role : has
+```
+
+#### 3.1.2宿舍信息子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+
+
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class DormInfoUI {
+        +displayDormDetails() void
+        +showRoommates() void
+        +showAvailableRooms() void
+        +filterDorms() void
+    }
+
+    class RoomChangeForm {
+        +String studentId
+        +String currentRoom
+        +String requestedRoom
+        +String reason
+        +Date requestDate
+        +submitRequest() void
+        +cancelRequest() void
+    }
+
+    %% Control Classes
+    class RoomChangeController {
+        +processRoomChange() boolean
+        +validateRequest() boolean
+        +checkAvailability() boolean
+    }
+
+    class AllocationController {
+        +allocateRooms() void
+        +generateAllocationPlan() void
+        +adjustAllocation() void
+        +confirmAllocation() void
+    }
+
+    %% Entity Classes
+    class Dormitory {
+        +String dormId
+        +String buildingName
+        +String address
+        +Integer totalFloors
+        +Integer totalRooms
+        +DormType type
+        +List~Room~ rooms
+        +getRoomDetails() Room
+        +getAvailableRooms() List~Room~
+        +updateRoomStatus() void
+    }
+
+    class Room {
+        +String roomId
+        +String roomNumber
+        +Integer floor
+        +Integer capacity
+        +Integer currentOccupancy
+        +RoomStatus status
+        +List~Facility~ facilities
+        +checkAvailability() boolean
+        +addStudent() void
+        +removeStudent() void
+    }
+
+    class Student {
+        +String studentId
+        +String name
+        +String major
+        +Integer grade
+        +String currentRoom
+        +Date checkInDate
+        +getRoommates() List~Student~
+        +requestRoomChange() void
+        +updateRoom() void
+    }
+
+    class AllocationSystem {
+        +String allocationId
+        +Date allocationDate
+        +AllocationStatus status
+        +Map~String, String~ assignments
+        +executeAllocation() void
+        +adjustAssignment() void
+        +finalizeAllocation() void
+    }
+
+    class DormSupervisor {
+        +String supervisorId
+        +String name
+        +String contact
+        +List~String~ managedBuildings
+        +reviewRoomChange() boolean
+        +approveAllocation() void
+        +generateReport() void
+    }
+
+    %% Enumerations
+    class DormType {
+        <<enumeration>>
+        MALE_DORM
+        FEMALE_DORM
+        INTERNATIONAL
+        GRADUATE
+    }
+
+    class RoomStatus {
+        <<enumeration>>
+        AVAILABLE
+        OCCUPIED
+        UNDER_MAINTENANCE
+        RESERVED
+    }
+
+    class AllocationStatus {
+        <<enumeration>>
+        PENDING
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+
+    %% Relationships
+    DormInfoUI --> Room : displays
+    RoomChangeForm --> RoomChangeController : submits to
+    RoomChangeController --> Student : updates
+    RoomChangeController --> DormSupervisor : requires approval from
+    AllocationController --> AllocationSystem : manages
+    AllocationController --> DormSupervisor : coordinates with
+    Dormitory "1" -- "*" Room : contains
+    Room "*" -- "*" Student : accommodates
+    AllocationSystem "*" -- "*" Student : allocates
+```
+
+#### 3.1.3设备和维修管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class StudentMaintenanceUI {
+        +submitRepairRequest() void
+        +viewRepairStatus() void
+        +viewRepairHistory() void
+        +cancelRequest() void
+    }
+
+    class SupervisorMaintenanceUI {
+        +reviewRequests() void
+        +assignStaff() void
+        +updateRepairStatus() void
+        +generateReports() void
+    }
+
+    %% Control Classes
+    class MaintenanceController {
+        +processRepairRequest() void
+        +assignMaintenanceStaff() void
+        +updateRepairProgress() void
+        +completeRepair() void
+    }
+
+    %% Entity Classes
+    class Equipment {
+        +String equipmentId
+        +String equipmentName
+        +String location
+        +EquipmentType type
+        +EquipmentStatus status
+        +Date purchaseDate
+        +Date lastMaintenance
+        +reportIssue() void
+        +updateStatus() void
+        +scheduleMaintenance() void
+    }
+
+    class MaintenanceRequest {
+        +String requestId
+        +String studentId
+        +String equipmentId
+        +String description
+        +RequestPriority priority
+        +RequestStatus status
+        +Date requestDate
+        +Date completionDate
+        +String assignedStaff
+        +submitRequest() void
+        +updateStatus() void
+        +assignStaff() void
+    }
+
+    class MaintenanceStaff {
+        +String staffId
+        +String name
+        +String specialization
+        +String contact
+        +Integer workload
+        +Boolean available
+        +acceptAssignment() void
+        +updateWorkStatus() void
+        +completeTask() void
+    }
+
+    %% Enumerations
+    class EquipmentType {
+        <<enumeration>>
+        FURNITURE
+        APPLIANCE
+        PLUMBING
+        ELECTRICAL
+        HVAC
+        SECURITY
+    }
+
+    class EquipmentStatus {
+        <<enumeration>>
+        OPERATIONAL
+        NEEDS_MAINTENANCE
+        UNDER_REPAIR
+        DECOMMISSIONED
+    }
+
+    class RequestPriority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+        URGENT
+    }
+
+    class RequestStatus {
+        <<enumeration>>
+        SUBMITTED
+        UNDER_REVIEW
+        ASSIGNED
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+
+    %% Relationships
+    StudentMaintenanceUI --> MaintenanceController : uses
+    SupervisorMaintenanceUI --> MaintenanceController : uses
+    MaintenanceController --> MaintenanceRequest : manages
+    MaintenanceController --> MaintenanceStaff : assigns
+    MaintenanceRequest "1" -- "1" Equipment : references
+    MaintenanceRequest "1" -- "1" MaintenanceStaff : assigned to
+```
+#### 3.1.4缴费管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class PaymentUI {
+        +displayPaymentOptions() void
+        +showPaymentHistory() void
+        +processPayment() void
+        +showReceipt() void
+        +showPaymentStatus() void
+    }
+
+    %% Control Classes
+    class PaymentController {
+        +initiatePayment() void
+        +validatePayment() boolean
+        +processTransaction() void
+        +updatePaymentStatus() void
+        +generateReceipt() void
+    }
+
+    %% Entity Classes
+    class PaymentRecord {
+        +String paymentId
+        +String studentId
+        +PaymentType paymentType
+        +BigDecimal amount
+        +Date paymentDate
+        +PaymentStatus status
+        +String transactionId
+        +String paymentMethod
+        +createRecord() void
+        +updateStatus() void
+        +generateReceipt() String
+    }
+
+    class FeeStructure {
+        +String feeId
+        +String feeType
+        +BigDecimal amount
+        +Date dueDate
+        +String description
+        +calculateTotal() BigDecimal
+        +getDueFees() List~Fee~
+    }
+
+    %% Enumerations
+    class PaymentType {
+        <<enumeration>>
+        TUITION
+        DORM_FEE
+        UTILITY
+        MAINTENANCE
+        OTHER
+    }
+
+    class PaymentStatus {
+        <<enumeration>>
+        PENDING
+        PROCESSING
+        COMPLETED
+        FAILED
+        REFUNDED
+    }
+
+    class PaymentMethod {
+        <<enumeration>>
+        CREDIT_CARD
+        DEBIT_CARD
+        BANK_TRANSFER
+        DIGITAL_WALLET
+        CASH
+    }
+
+    %% Relationships
+    PaymentUI --> PaymentController : uses
+    PaymentController --> PaymentRecord : manages
+    PaymentRecord "1" -- "*" FeeStructure : includes
+```
+#### 3.1.5公共资源管理子系统类图
+以下是用户管理子系统的类图，边界类为登录、注册、修改密码的表单；控制类负责管理登录和注册行为；实体类为Account用于存储账户信息。
+```mermaid
+classDiagram
+    %% Boundary Classes
+    class PublicDeviceUI {
+        +browseDevices() void
+        +requestDevice() void
+        +returnDevice() void
+        +viewUsageHistory() void
+    }
+
+    class PublicSpaceUI {
+        +viewSpaces() void
+        +bookSpace() void
+        +cancelBooking() void
+        +checkAvailability() void
+    }
+
+    class CommonItemUI {
+        +registerItem() void
+        +borrowItem() void
+        +returnItem() void
+        +trackItems() void
+    }
+
+    class LargeItemUI {
+        +registerLargeItem() void
+        +requestApproval() void
+        +trackLargeItems() void
+        +generateReports() void
+    }
+
+    %% Control Classes
+    class DeviceController {
+        +manageDevices() void
+        +processRequests() void
+        +trackUsage() void
+    }
+
+    class SpaceController {
+        +manageSpaces() void
+        +handleBookings() void
+        +checkConflicts() boolean
+    }
+
+    class ItemController {
+        +registerItems() void
+        +processBorrowRequests() void
+        +trackInventory() void
+    }
+
+    class LargeItemController {
+        +handleLargeItems() void
+        +processApprovals() void
+        +generateItemReports() void
+    }
+
+    %% Entity Classes
+    class Device {
+        +String deviceId
+        +String deviceName
+        +String location
+        +DeviceType type
+        +DeviceStatus status
+        +String currentUser
+        +Date dueDate
+        +registerDevice() void
+        +updateStatus() void
+        +assignUser() void
+    }
+
+    class PublicSpace {
+        +String spaceId
+        +String spaceName
+        +Integer capacity
+        +List~Facility~ facilities
+        +SpaceStatus status
+        +Schedule bookingSchedule
+        +checkAvailability() boolean
+        +bookSpace() boolean
+        +cancelBooking() void
+    }
+
+    class CommonItem {
+        +String itemId
+        +String itemName
+        +ItemCategory category
+        +Integer quantity
+        +Integer available
+        +String location
+        +registerItem() void
+        +updateQuantity() void
+        +processBorrow() boolean
+    }
+
+    class LargeItemRecord {
+        +String recordId
+        +String itemName
+        +String owner
+        +String location
+        +Date entryDate
+        +ApprovalStatus status
+        +String approvedBy
+        +createRecord() void
+        +updateApproval() void
+        +generateReport() String
+    }
+
+    %% Enumerations
+    class DeviceType {
+        <<enumeration>>
+        PROJECTOR
+        PRINTER
+        SCANNER
+        LAPTOP
+        TABLET
+    }
+
+    class DeviceStatus {
+        <<enumeration>>
+        AVAILABLE
+        BORROWED
+        MAINTENANCE
+        RESERVED
+    }
+
+    class SpaceStatus {
+        <<enumeration>>
+        AVAILABLE
+        BOOKED
+        MAINTENANCE
+        CLOSED
+    }
+
+    class ItemCategory {
+        <<enumeration>>
+        SPORTS
+        CLEANING
+        KITCHEN
+        STUDY
+        ENTERTAINMENT
+    }
+
+    class ApprovalStatus {
+        <<enumeration>>
+        PENDING
+        APPROVED
+        REJECTED
+        EXPIRED
+    }
+
+    %% Relationships
+    PublicDeviceUI --> DeviceController : uses
+    PublicSpaceUI --> SpaceController : uses
+    CommonItemUI --> ItemController : uses
+    LargeItemUI --> LargeItemController : uses
+    DeviceController --> Device : manages
+    SpaceController --> PublicSpace : manages
+    ItemController --> CommonItem : manages
+    LargeItemController --> LargeItemRecord : manages
+```
+
+
+### 3.2 Interaction Analysis（交互：时序/协作图）
+
+#### 3.2.1 注册
+这张时序图描述了内部用户进行注册的流程，用户信息将由Account类进行授权，并由RegistrationForm类负责显示注册结果。 
+```mermaid
+sequenceDiagram
+    participant User
+    participant RF as RegistrationForm
+    participant RC as RegistrationController
+    participant Acc as Account
+    participant DB as Database
+
+    User->>RF: Open registration form
+    RF->>RF: Display registration fields
+    User->>RF: Fill registration data
+    User->>RF: Submit registration
+    
+    RF->>RC: Send registration request
+    RC->>RC: Validate input data
+    RC->>DB: Check for duplicate username/email
+    DB-->>RC: Return duplicate check result
+    
+    alt Duplicate found
+        RC-->>RF: Return error - duplicate user
+        RF-->>User: Show error message
+    else Valid data
+        RC->>Acc: Create new account
+        Acc->>DB: Save account information
+        DB-->>Acc: Confirm save
+        Acc-->>RC: Return account creation result
+        RC-->>RF: Return registration success
+        RF-->>User: Show success message
+    end
+```
+#### 3.2.2 分配宿舍
+这张时序图描述了系统分配宿舍的流程。有宿管启动分配，分配系统收到请求后进行宿舍分配，再由宿管调整分配结果，直至宿管确认结果。
+```mermaid
+sequenceDiagram
+    participant Supervisor as DormSupervisor
+    participant AC as AllocationController
+    participant AS as AllocationSystem
+    participant Dorm as Dormitory
+    participant Stu as Student
+    participant DB as Database
+
+    Supervisor->>AC: Initiate allocation process
+    AC->>AS: Start allocation algorithm
+    AS->>Dorm: Get available rooms
+    Dorm->>DB: Query room availability
+    DB-->>Dorm: Return available rooms
+    Dorm-->>AS: Return room data
+    
+    AS->>Stu: Get student allocation preferences
+    Stu->>DB: Query student data
+    DB-->>Stu: Return student information
+    Stu-->>AS: Return student preferences
+    
+    AS->>AS: Run allocation algorithm
+    AS->>AS: Generate preliminary allocation plan
+    AS-->>AC: Return allocation proposal
+    AC-->>Supervisor: Display allocation results
+    
+    loop Until supervisor confirms
+        alt Supervisor adjusts allocation
+            Supervisor->>AC: Request adjustment
+            AC->>AS: Modify specific allocation
+            AS->>AS: Recalculate allocations
+            AS-->>AC: Return updated plan
+            AC-->>Supervisor: Show adjusted results
+        else Supervisor confirms
+            Supervisor->>AC: Confirm final allocation
+        end
+    end
+    
+    AC->>AS: Finalize allocation plan
+    AS->>DB: Save allocation records
+    DB-->>AS: Confirm save
+    AS->>Stu: Update student room assignments
+    Stu->>DB: Update student records
+    DB-->>Stu: Confirm update
+    AS-->>AC: Allocation completed
+    AC-->>Supervisor: Show allocation success
+```
+#### 3.2.3 宿舍设备报修
+这张交互图描述了学生进行宿舍报修的流程。报修申请将交由宿管审核并分配对应的维修人员，维修人员维修结束后在平台进行反馈，反馈结果将显示在学生端的相应界面上。
+```mermaid
+sequenceDiagram
+    participant Student
+    participant SMUI as StudentMaintenanceUI
+    participant MC as MaintenanceController
+    participant MR as MaintenanceRequest
+    participant Supervisor
+    participant Staff as MaintenanceStaff
+    participant Equip as Equipment
+    participant DB as Database
+
+    Student->>SMUI: Open maintenance request
+    SMUI->>SMUI: Display request form
+    Student->>SMUI: Select equipment and describe issue
+    Student->>SMUI: Submit repair request
+    
+    SMUI->>MC: Submit new maintenance request
+    MC->>MR: Create maintenance record
+    MR->>DB: Save request details
+    DB-->>MR: Confirm save
+    MR-->>MC: Return request ID
+    MC->>Supervisor: Notify new repair request
+    
+    Supervisor->>Supervisor: Review repair request
+    Supervisor->>MC: Approve and assign priority
+    MC->>Staff: Assign to available maintenance staff
+    Staff->>DB: Update assignment status
+    DB-->>Staff: Confirm update
+    Staff-->>MC: Assignment accepted
+    MC->>MR: Update request status to ASSIGNED
+    MR->>DB: Update request record
+    DB-->>MR: Confirm update
+    
+    MC->>Student: Notify assignment and ETA
+    Staff->>Equip: Perform repair work
+    Staff->>MC: Update repair progress
+    MC->>MR: Update status to IN_PROGRESS
+    
+    Staff->>Staff: Complete repair task
+    Staff->>MC: Report completion
+    MC->>MR: Update status to COMPLETED
+    MR->>DB: Finalize repair record
+    DB-->>MR: Confirm update
+    MC->>Equip: Update equipment status
+    Equip->>DB: Save equipment status
+    DB-->>Equip: Confirm update
+    
+    MC->>Student: Notify repair completion
+    Student->>SMUI: View repair results and feedback
+```
+#### 3.2.4 缴费管理
+这张交互图描述了学生进行宿舍缴费的流程。学生申请缴费之后会调用支付相关的接口并创建缴费记录，缴费成功与否会在平台进行反馈，反馈结果将显示在学生端的相应界面上。
+```mermaid
+sequenceDiagram
+    participant Student
+    participant PUI as PaymentUI
+    participant PC as PaymentController
+    participant PR as PaymentRecord
+    participant PG as PaymentGateway
+    participant DB as Database
+    participant Bank as BankSystem
+
+    Student->>PUI: View payment dashboard
+    PUI->>PC: Request due payments
+    PC->>DB: Query fee structure
+    DB-->>PC: Return fee details
+    PC-->>PUI: Return payment information
+    PUI-->>Student: Display payment options
+    
+    Student->>PUI: Select payment method and amount
+    Student->>PUI: Confirm payment
+    PUI->>PC: Initiate payment process
+    PC->>PR: Create payment record
+    PR->>DB: Save payment record as PENDING
+    DB-->>PR: Confirm save
+    
+    PC->>PG: Process payment transaction
+    PG->>Bank: Verify and process payment
+    Bank-->>PG: Return transaction result
+    
+    alt Payment successful
+        PG-->>PC: Return success with transaction ID
+        PC->>PR: Update status to COMPLETED
+        PR->>DB: Update payment record
+        DB-->>PR: Confirm update
+        PC->>PR: Generate payment receipt
+        PR-->>PC: Return receipt data
+        PC-->>PUI: Show payment success and receipt
+        PUI-->>Student: Display success message and receipt
+    else Payment failed
+        PG-->>PC: Return failure reason
+        PC->>PR: Update status to FAILED
+        PR->>DB: Update payment record
+        DB-->>PR: Confirm update
+        PC-->>PUI: Show payment failure
+        PUI-->>Student: Display error message and retry options
+    end
+```
+#### 3.2.5 公共物品登记
+这张交互图描述了学生进行公共物品登记的流程。公共物品的申请将交由宿管审核并登记，学生归还之后仍然需要宿管进行归还登记，反馈结果将显示在学生端的相应界面上。
+```mermaid
+sequenceDiagram
+    participant Student
+    participant CIUI as CommonItemUI
+    participant IC as ItemController
+    participant CI as CommonItem
+    participant Supervisor
+    participant DB as Database
+
+    Student->>CIUI: Open item registration
+    CIUI->>CIUI: Display registration form
+    Student->>CIUI: Enter item details (name, category, quantity)
+    Student->>CIUI: Submit registration request
+    
+    CIUI->>IC: Submit item registration
+    IC->>IC: Validate item information
+    IC->>Supervisor: Forward for approval
+    Supervisor->>Supervisor: Review registration request
+    
+    alt Request approved
+        Supervisor->>IC: Approve item registration
+        IC->>CI: Create new item record
+        CI->>DB: Save item information
+        DB-->>CI: Confirm save
+        CI-->>IC: Return registration result
+        IC->>Student: Notify approval success
+        IC->>CIUI: Update item catalog
+        CIUI-->>Student: Show registration success and item ID
+    else Request rejected
+        Supervisor->>IC: Reject item registration
+        IC->>Student: Notify rejection with reason
+        Student->>CIUI: View rejection notice
+    end
+
+    %% Item Return Process
+    Student->>CIUI: Initiate item return
+    CIUI->>IC: Process return request
+    IC->>CI: Update item status and quantity
+    CI->>DB: Update item record
+    DB-->>CI: Confirm update
+    CI-->>IC: Return update result
+    IC->>Supervisor: Notify item return for verification
+    Supervisor->>Supervisor: Verify returned item condition
+    Supervisor->>IC: Confirm return completion
+    IC->>Student: Notify return processed
+    IC->>CIUI: Update inventory status
+    CIUI-->>Student: Display return confirmation
+```
+
+
+## 4 Updated Requirements（需求更新）
+
+为保持领域不变且提高可验证性，本次对需求进行了范围精化与指标明确，形成如下更新条目，并与 SRS 第 3/6/10 章建立对应关系。
+
+| 需求ID | 变更内容 | 原因 | 影响范围（用例/类/接口/UI） | 验证方式 | 版本/日期 |
+| --- | --- | --- | --- | --- | --- |
+| R-UC-03 | 智能分配流程加入“人工微调+审批+日志固化”必经环节 | 确保可解释性与合规审计 | UC03、AllocationController、AuditLog、宿管后台 | E2E 流程测试（含审批拒绝/通过分支），审计日志字段校验 | v1.1 / 2025-11-12 |
+| R-NFR-01 | 分配/查询类接口 P95 ≤ 800ms，P99 ≤ 1500ms；并发 500 | 与 SRS 第 6 章性能指标对齐并细化场景 | API 网关、智能分配服务、宿舍查询 UI | JMeter 场景压测（30min），采样与报表留存 | v1.1 / 2025-11-12 |
+| R-SEC-02 | 强化 RBAC：学生不可越权操作分配结果；宿管操作全留痕 | 减少越权与追责盲区 | Role/Permission、Controller 层、宿管 UI | 角色模拟测试用例（学生/宿管/访客），操作审计校验 | v1.1 / 2025-11-12 |
+| R-INT-01 | 学籍系统最小数据集：studentId、major、grade、gender、pref | 明确算法所需画像输入 | 学籍适配器、智能匹配算法 | 接口桩联调（200 条样本），字段完整性与异常处理 | v1.1 / 2025-11-12 |
+| R-INT-02 | 门禁/访客接口统一事件模型（enter/exit/alert） | 降低集成复杂度 | 门禁适配器、安防服务、告警 UI | 事件模拟与订阅通道测试（WebSocket/MQTT） | v1.1 / 2025-11-12 |
+| R-DATA-01 | 单库 + 连接池 + 热点缓存策略作为一致性基线 | 简化分布式事务复杂度 | Data Persistence、Repository、Cache | 事务一致性测试；缓存穿透与过期策略演练 | v1.1 / 2025-11-12 |
+| R-UI-01 | UI 文案与术语统一（用例编号、角色命名、状态枚举） | 降低跨章节歧义 | 所有 UI、类图枚举、交互说明 | 术语字典比对检查；截图与文本双向引用 | v1.1 / 2025-11-12 |
+| R-QA-01 | 分配/报修关键路径纳入回归套件（≥20 条） | 提升持续交付质量 | CI/CD、测试用例库 | 自动化回归（PR 触发）、覆盖率度量 | v1.1 / 2025-11-12 |
+
+---
+
+
+## 5 UI Mock-ups（界面快照）
+
+本节展示本系统当前已完成的五个核心界面原型，包括登录页面、宿舍管理员主界面、学生端报修申请页、宿舍分配与更换界面，以及学生个人宿舍主页。
+
+---
+
+### 5.1 登录页面（Login Page）
+
+![Login Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Login%20Page_v1.0.png)
+
+**功能简介：**
+登录页面是系统访问的入口，用户可通过输入学号和密码进入学生端或后台管理端。
+
+**关键交互：**
+
+* 输入学号与密码后点击“登录”按钮进行身份验证
+* 可点击“找回密码”跳转至重置流程
+* “使用指南”为新用户提供操作说明
+
+---
+
+### 5.2 宿舍管理员主界面（Manager Main Page）
+
+![Manager Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Manager%20Page_v1.0.png)
+
+**功能简介：**
+提供宿舍管理员所需的核心管理功能，包括报修统计、报修任务处理、公告管理等。
+
+**关键交互：**
+
+* 顶部导航栏可切换 “情况统计 / 报修管理 / 宿舍分配 / 公告”
+* 报修任务列表支持查看任务状态（已完成 / 进行中等）
+* 公告模块可创建或编辑公告
+
+---
+
+### 5.3 学生宿舍报修申请页面（Repairment Page）
+
+![Repairment Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Repairment%20Page_v1.0.png)
+
+**功能简介：**
+用于学生提交宿舍维修工单，包括选择报修类型、描述问题、上传照片和填写联系方式。
+
+**关键交互：**
+
+* 下拉选择报修类别（如：电路、水管、门锁等）
+* 文本框填写问题详情
+* 上传图片辅助管理员判断
+* 点击“提交申请”进入工单处理流程
+
+---
+
+### 5.4 宿舍分配与更换界面（Dorm Allocation & Change）
+
+![Dorm Change Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Change_v1.0.png)
+
+**功能简介：**
+学生可根据个人偏好筛选宿舍（楼栋、楼层、床位、作息、卫生、宿舍环境等）并查看推荐结果。
+
+**关键交互：**
+
+* 左侧为偏好设置栏（可选择年级、楼栋、楼层、环境偏好等）
+* 右侧展示系统筛选结果
+* 每条宿舍候选项提供“申请”按钮
+* 支持保存偏好
+
+---
+
+### 5.5 学生个人宿舍主页（Student Home Page）
+
+![Dorm Info Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Page_v1.0.png)
+
+**功能简介：**
+集中展示学生的宿舍基本信息、公告通知，以及报修记录，并提供快捷入口至各类功能。
+
+**关键交互：**
+
+* 顶部栏可切换：宿舍信息 / 报修中心 / 公告
+* 展示当前宿舍号、入住状态、最新公告
+* 列表展示近期报修记录
+* 底部按钮可进入：报修申请、费用缴纳、宿舍分配、个人信息填写等页面
+
+
+---
+
+## 6 Open Issues（未解决问题）
+
+概要表
+
+| ID    | 问题                         | 优先级 | 影响模块/层级                                  | 负责人                   | 里程碑（计划）                    |
+|-------|------------------------------|--------|-----------------------------------------------|--------------------------|-----------------------------------|
+| OI-01 | 智能分配算法优化             | P0     | 领域核心层/智能分配服务/学籍适配器             | 杨光                     | 方案 11-16；PoC 11-18；验证 11-20 |
+| OI-02 | 数据安全与隐私保护           | P0     | 应用层（RBAC/审计）/数据持久化层（加密）       | 黄毅成                   | 策略 11-16；实施清单 11-20        |
+| OI-03 | 系统性能与可扩展性           | P0     | API 网关/分配与查询服务/缓存/连接池            | 黄毅成                   | 压测计划 11-16；报表 11-20        |
+| OI-04 | 多平台兼容与用户体验         | P1     | 前端 UI/桌面端（Electron）/响应式布局          | 马敏慧智                 | 规范 11-15；修订 11-19            |
+| OI-05 | 实时监控与预警机制           | P1     | 安防服务/门禁适配器/事件通道/告警 UI           | 黄毅成                   | 事件模型 11-16；PoC 11-19         |
+| OI-06 | 第三方服务集成               | P1     | 支付适配/短信网关/通知服务                     | 黄毅成                   | 接口桩 11-15；联调 11-19          |
+| OI-07 | 用户反馈机制与迭代更新       | P2     | 前端/后端/反馈管道/工单与公告                  | 张峻搏、马敏慧智         | 方案 11-16；上线 11-22            |
+
+详细项
+
+- OI-01 智能分配算法优化（P0）
+  - 问题描述：现有匹配考虑生活习惯/学习时间/偏好，准确性、可解释性与计算效率不足。
+  - 影响模块：智能分配服务、领域核心层（智能匹配算法）、学籍系统适配器。
+  - 初步方案：画像最小集（studentId、major、grade、gender、pref）；硬约束优先 + 多目标评分；输出 Top-N 与原因；支持宿管微调与审批；全链路审计。
+  - 阻碍因素：样本不足、评价口径不统一、接口依赖（学籍系统）。
+  - 负责人：杨光
+  - 里程碑：方案 11-16；PoC 11-18；验证 11-20
+  - 验收标准：硬约束违规率=0；Top-1 推荐满意度≥85%（模拟问卷）；冲突率≤3%；审计日志字段完整（操作者/时间/前后值/理由）。
+
+- OI-02 数据安全与隐私保护（P0）
+  - 问题描述：处理大量个人数据，需满足最小化采集、存储加密与访问留痕。
+  - 影响模块：应用服务层（RBAC/审计）、数据持久化层（加密、脱敏）。
+  - 初步方案：RBAC/权限最小化；TLS1.2+ 传输；AES-256 at-rest；字段级脱敏；审计日志哈希链；数据分级与留存策略。
+  - 阻碍因素：加密开销、历史数据迁移、合规要求明确化。
+  - 负责人：黄毅成
+  - 里程碑：策略 11-16；实施清单 11-20
+  - 验收标准：未授权访问全部拒绝（角色模拟用例）；审计日志覆盖关键操作≥95%；安全基线扫描 0 高危；合规清单通过评审。
+
+- OI-03 系统性能与可扩展性（P0）
+  - 问题描述：并发增长下的响应与稳定性风险。
+  - 影响模块：API 网关、智能分配与宿舍查询服务、缓存、数据库连接池。
+  - 初步方案：连接池与热点缓存；网关限流与熔断；慢查询优化；分配/查询关键路径压测。
+  - 阻碍因素：真实负载难复现、第三方接口瓶颈。
+  - 负责人：黄毅成
+  - 里程碑：压测计划 11-16；报表 11-20
+  - 验收标准：分配/查询接口 P95 ≤ 800ms、P99 ≤ 1500ms；并发 500 稳定；缓存命中率≥70%；错误率≤0.5%。
+
+- OI-04 多平台兼容与用户体验（P1）
+  - 问题描述：PC/移动/桌面端体验不一致，可能出现布局破碎与文案不统一。
+  - 影响模块：前端 UI、桌面端（Electron）、组件库。
+  - 初步方案：响应式栅格；终端能力抽象（Electron）；术语与文案统一；关键流程可用性自测脚本。
+  - 阻碍因素：组件库差异、窗口缩放与高分屏适配。
+  - 负责人：马敏慧智
+  - 里程碑：规范 11-15；修订 11-19
+  - 验收标准：Lighthouse ≥ 85（Desktop/Mobile）；关键页面无布局破碎；术语一致性检查通过；无阻塞脚本与重大可访问性问题。
+
+- OI-05 实时监控与预警机制（P1）
+  - 问题描述：门禁/设备状态需要近实时采集、处理与告警。
+  - 影响模块：安防服务、门禁适配器、事件通道、告警 UI。
+  - 初步方案：统一事件模型（enter/exit/alert）；通道 WebSocket/MQTT；规则引擎；离线降级与补偿。
+  - 阻碍因素：硬件接口不稳定、网络波动。
+  - 负责人：黄毅成
+  - 里程碑：事件模型 11-16；PoC 11-19
+  - 验收标准：端到端事件延迟 ≤ 1s（常态）；误报率 < 2%；丢包自动重传；降级策略覆盖 3 种异常场景。
+
+- OI-06 第三方服务集成（P1）
+  - 问题描述：支付/短信等服务接口兼容性、稳定性与安全性。
+  - 影响模块：支付适配器、短信网关、通知服务。
+  - 初步方案：适配器封装；重试与退避；幂等键；签名校验与时钟同步；沙箱联调与回调验收。
+  - 阻碍因素：对方 SLA 不稳定、限流策略不透明。
+  - 负责人：黄毅成
+  - 里程碑：接口桩 11-15；联调 11-19
+  - 验收标准：支付成功/失败/取消/退款 4 流程可回放；重试不重复记账；签名校验全部通过；联调报表无高危异常。
+
+- OI-07 用户反馈机制与迭代更新（P2）
+  - 问题描述：缺少系统化的用户反馈收集与闭环。
+  - 影响模块：前端、后端、反馈管道、工单与公告。
+  - 初步方案：内嵌反馈入口与分类；公告与问题工单联动；周迭代节奏；P95/P99 指标与满意度仪表板。
+  - 阻碍因素：有效样本不足、反馈噪声高。
+  - 负责人：张峻搏、马敏慧智
+  - 里程碑：方案 11-16；上线 11-22
+  - 验收标准：反馈响应 SLA ≤ 48h；每周至少 2 个问题闭环；仪表板可视化到位；迭代记录与变更日志完备。
+
+---
+
+
+## 7 AI Usage & Citations（AI 使用与引用）
+
+本项目在文档撰写、结构组织与语言校对过程中有限度地使用了 AI 工具（如 ChatGPT，DeepSeek）。AI 的使用仅作为文本生成辅助工具，不参与需求决策、系统架构设计或模型构建。所有内容均由组员进行人工校对，以确保术语一致性、逻辑准确性和内容可验证性。
+
+### **使用场景**
+
+* 文档初稿生成、语言润色与段落结构优化
+* 技术文档摘要（React、Go、PostgreSQL）
+* 图表描述文本辅助（甘特图、流程图说明用语）
+* 用例文字草稿，后续均由组员人工修订
+
+### **人工复核方法**
+
+* 对 AI 生成的文字逐段比对，保证术语、角色命名与用例一致
+* 核对技术描述与官方文档保持一致
+* 删除未经验证的信息，所有数据均保持为虚构或说明性示例
+
+### **产出标记**
+
+AI 参与部分包括：系统简介草稿、UI 描述草稿、部分战略分析内容。最终内容均由成员完成统一风格和技术核验。
+
+### **隐私与合规**
+
+* 未向 AI 工具输入任何真实学号、身份信息或学校内部数据
+* 所有示例数据均为虚构
+* 遵守课程“透明标注 AI 辅助来源”的要求
+
+---
+
+## 8 Annotated References（注释型参考文献）
+
+
+
+## **[1] ISO/IEC/IEEE 29148:2018 — Systems and Software Engineering — Requirements Engineering**
+
+
+**注释：**
+ISO/IEC/IEEE 29148:2018 是软件与系统工程中使用最广泛的需求工程国际标准，提供了 SRS（软件需求规格说明）的结构组织、需求质量属性、可验证性原则及术语定义。本项目在撰写 SRS 文档时参考了该标准的章节结构，如“Introduction–Use Case–Non-Functional Requirements”等，以确保内容的规范性与一致性。其“需求可追踪性”和“需求一致性”原则对本项目的用例编号、角色命名及流程映射提供了重要指导。需要注意的是，该标准涵盖的范围较大，其中部分如认证要求、复杂安全模型不完全适用于本课程项目，因此仅选取与高校宿舍管理系统相关的部分进行参考。
+
+
+
+## **[2] React Documentation — Meta Platforms, Inc.（[https://react.dev）](https://react.dev）)**
+
+
+**注释：**
+React 官方文档系统性描述了组件化开发模式、状态管理、事件处理与 Hooks 使用原则，是本项目前端架构设计的重要依据。宿舍管理系统包含多个独立模块（登录、报修、费用、公告管理等），React 的状态提升、受控组件与组件复用机制为界面分层设计提供了技术指导。文档中的“Thinking in React”章节为本项目 UI 原型与页面结构拆分提供了实践参考。然而 React 文档主要覆盖 UI 技术层面，对权限控制、API 网关、系统安全等不在其范畴的内容仍需结合后端架构设计自行补充。
+
+
+
+## **[3] Gin Web Framework Documentation — Gin-Gonic（[https://gin-gonic.com/docs）](https://gin-gonic.com/docs）)**
+
+
+**注释：**
+Gin 是 Go 语言主流的轻量级 Web 框架，其官方文档涵盖路由机制、参数绑定、中间件、错误处理与 JSON 序列化等内容。本项目的 RESTful API 层设计（包括报修、宿舍分配、用户管理、公告管理等接口）均与文档中给出的实践模式一致。Gin 的高性能路由树结构使其适合承载宿舍管理系统中高频接口调用（如公告刷新、报修轮询等）。文档示例清晰，但对于大型系统结构划分、RBAC 权限管理及数据库事务等内容描述有限，因此本项目在相关设计中需额外参考其他工程经验进行补充。
+
+
+
+## **[4] PostgreSQL 16 Official Documentation — PostgreSQL Global Development Group（[https://www.postgresql.org/docs/）](https://www.postgresql.org/docs/）)**
+
+
+**注释：**
+PostgreSQL 官方文档涵盖关系建模、索引、事务隔离级别、视图与触发器等功能，是本项目数据库设计与优化的重要参考。本项目的宿舍信息表、报修表、费用表、用户与角色表均基于文档中的规范化设计原则构建。文档对 JSONB、CTE、触发器等特性提供了深入说明，有助于实现复杂查询和后台统计。例如报修处理流程可通过触发器记录状态流转日志。需要注意的是，该文档内容量较大且偏工程化，初学者阅读成本较高，因此本项目仅选取与宿舍管理系统直接相关的部分进行应用。
+
+
+
+## **[5] Dormitory-Management-System — GitHub Repository（[https://github.com/TVenkateswaran2002/Dormitory-Management-System）](https://github.com/TVenkateswaran2002/Dormitory-Management-System）)**
+
+
+**注释：**
+该项目是一个开源宿舍管理系统，涵盖学生信息管理、房间分配与费用记录等核心功能。其仓库结构、模块划分、界面布局及 API 职责分离为本项目提供了参考示例。例如，该项目通过分离“学生模块”“管理员模块”实现角色区隔，这与本项目在学生/宿管/维修人员角色划分中的理念一致。尽管其技术栈为 PHP + MySQL，与本项目的 React + Go + PostgreSQL 不同，但其业务流程（入住登记、费用结算、宿舍状态展示）具有一定参考价值。由于该仓库文档较为简略，且缺乏测试与前后端分离设计，因此在本项目中主要作为业务功能参考，而非架构参考。
+
+---
+
+
+## 9 Contributions of Team Members（团队成员贡献与分工）
+
+本章汇总本次“系统分析”文档的实际贡献与交付。术语与编号与全文保持一致。
+
+| 学号 | 姓名 | 本次文档贡献 | 
+| --- | --- | --- | --- | 
+| 2252964 | 张峻搏（组长） | 1 引言撰写；4 需求更新表与说明；9 成员贡献整编；术语一致性与版本控制 | 
+| 2252634 | 黄毅成 | 2 架构分析；系统级架构图与 ADR；外部系统接口约束（学籍/支付/门禁） | 
+| 2251756 | 杨光 | 3.1 领域模型类图与枚举；3.2 交互分析（UC03/UC04/UC06 时序图） |
+| 2351707 | 马敏慧智 | 5 UI 快照（≥5）与说明；8 注释型参考文献；7 AI 使用说明（如适用） |
+
+---
+
+## Submission Checklist（提交检查清单）
+
+- 文档完整：1–9 章节齐备，语言统一、术语一致（参考 SRS Glossary）。
+- 模型齐备：架构图、类图、时序图均已导出 PNG/SVG 并正确引用。
+- 资源路径统一：`assignment2/Assignment_2/src/<模块>/...`。
+- 非功能指标呼应：文中涉及性能/安全/可维护性时，引用 `SRS.md` 第 6 章指标。
+- 引用与合规：AI 使用说明（如适用）；注释型参考文献每条 200–300 字。
+- 演示准备：10 分钟演示的关键页与讲述节奏（目标→架构→模型→UI→问题→计划）。
