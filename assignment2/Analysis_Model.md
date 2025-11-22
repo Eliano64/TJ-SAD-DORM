@@ -1048,7 +1048,7 @@ sequenceDiagram
 
 ### 5.1 登录页面（Login Page）
 
-![Login Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Login%20Page_v1.0.png)
+![Login Page](UI/Login%20Page_v1.0.png)
 
 **功能简介：**
 登录页面是系统访问的入口，用户可通过输入学号和密码进入学生端或后台管理端。
@@ -1063,7 +1063,7 @@ sequenceDiagram
 
 ### 5.2 宿舍管理员主界面（Manager Main Page）
 
-![Manager Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Manager%20Page_v1.0.png)
+![Manager Page](UI/Manager%20Page_v1.0.png)
 
 **功能简介：**
 提供宿舍管理员所需的核心管理功能，包括报修统计、报修任务处理、公告管理等。
@@ -1078,7 +1078,7 @@ sequenceDiagram
 
 ### 5.3 学生宿舍报修申请页面（Repairment Page）
 
-![Repairment Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Repairment%20Page_v1.0.png)
+![Repairment Page](UI/Repairment%20Page_v1.0.png)
 
 **功能简介：**
 用于学生提交宿舍维修工单，包括选择报修类型、描述问题、上传照片和填写联系方式。
@@ -1094,7 +1094,7 @@ sequenceDiagram
 
 ### 5.4 宿舍分配与更换界面（Dorm Allocation & Change）
 
-![Dorm Change Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Change_v1.0.png)
+![Dorm Change Page](UI/Document%20Change_v1.0.png)
 
 **功能简介：**
 学生可根据个人偏好筛选宿舍（楼栋、楼层、床位、作息、卫生、宿舍环境等）并查看推荐结果。
@@ -1110,7 +1110,7 @@ sequenceDiagram
 
 ### 5.5 学生个人宿舍主页（Student Home Page）
 
-![Dorm Info Page](https://github.com/Eliano64/TJ-SAD-DORM/blob/main/assignment2/UI/Document%20Page_v1.0.png)
+![Dorm Info Page](UI/Document%20Page_v1.0.png)
 
 **功能简介：**
 集中展示学生的宿舍基本信息、公告通知，以及报修记录，并提供快捷入口至各类功能。
@@ -1292,13 +1292,3 @@ PostgreSQL 官方文档涵盖关系建模、索引、事务隔离级别、视图
 | 2251756 | 杨光 | 3.1 领域模型类图与枚举；3.2 交互分析（UC03/UC04/UC06 时序图） |
 | 2351707 | 马敏慧智 | 5 UI 快照（≥5）与说明；8 注释型参考文献；7 AI 使用说明（如适用） |
 
----
-
-## Submission Checklist（提交检查清单）
-
-- 文档完整：1–9 章节齐备，语言统一、术语一致（参考 SRS Glossary）。
-- 模型齐备：架构图、类图、时序图均已导出 PNG/SVG 并正确引用。
-- 资源路径统一：`assignment2/Assignment_2/src/<模块>/...`。
-- 非功能指标呼应：文中涉及性能/安全/可维护性时，引用 `SRS.md` 第 6 章指标。
-- 引用与合规：AI 使用说明（如适用）；注释型参考文献每条 200–300 字。
-- 演示准备：10 分钟演示的关键页与讲述节奏（目标→架构→模型→UI→问题→计划）。
