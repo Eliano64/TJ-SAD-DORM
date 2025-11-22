@@ -113,9 +113,9 @@ ddl2: 2025-11-22(文档)
 
 交付物清单与路径约定
 - 图示与快照统一放置：`src/…`
-- Mermaid 图在导出PDF时建议预渲染为PNG再引用。
+- plantuml 图在导出PDF时建议预渲染为PNG再引用。
 - 用例、术语、非功能性需求的术语命名统一，跨章节复用。
 
 - 用例编号、术语命名、角色名称在全篇保持一致；图与文本互相引用。
 - 图片统一PNG；文件名包含页面与版本。
-- uml绘图工具：统一使用[starUML](https://staruml.io/download), 给出*有关*的[链接](https://github.com/X1a0He/StarUML-CrackedAndTranslate)。uml绘图参考[这个](https://www.geeksforgeeks.org/system-design/unified-modeling-language-uml-introduction/)
+- uml绘图工具：统一使用[plantUML](https://plantuml.com/)。uml绘图参考[这个](https://www.geeksforgeeks.org/system-design/unified-modeling-language-uml-introduction/)
